@@ -10,6 +10,9 @@ class MotionTracking:
         self.minArea = 250
         self.bg_subtractor = self.getBGSubtractor(BGS_TYPE)
 
+    def set_video_source(self, video_source: str):
+        self.cap = cv2.VideoCapture(video_source)
+
     def getKernel(self, KERNEL_TYPE: str) -> List[List[int]]:
         if KERNEL_TYPE == "dilation":
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
@@ -111,7 +114,7 @@ class MotionTracking:
                 self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 break
 
-            frame = cv2.resize(frame, (0, 0), fx=0.50, fy=0.50)
+            frame = cv2.resize(frame, (580, 300), fx=0.50, fy=0.50)
 
             fgmask = self.bg_subtractor.apply(frame)
             fgmask = self.getFilter(fgmask, 'combine')
@@ -125,9 +128,9 @@ class MotionTracking:
                     continue
 
                 (x, y, w, h) = cv2.boundingRect(c)
-                cv2.rectangle(frame, (10, 30), (258, 55), (255, 0, 0), -1)
-                cv2.putText(frame, "Rastreando Objetos", (10, 50),
-                            FONT, 0.8, TEXT_COLOR, 2, cv2.LINE_AA)
+                # cv2.rectangle(frame, (10, 30), (258, 55), (255, 0, 0), -1)
+                # cv2.putText(frame, "Rastreando Objetos", (10, 50),
+                #            FONT, 0.8, TEXT_COLOR, 2, cv2.LINE_AA)
                 cv2.drawContours(frame, c, -1, TRACKER_COLOR, 3)
                 cv2.drawContours(frame, c, -1, (255, 255, 255), 1)
                 cv2.rectangle(frame, (x, y), (x+w, y+h), TRACKER_COLOR, 3)

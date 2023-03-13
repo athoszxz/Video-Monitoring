@@ -1,12 +1,11 @@
-import numpy as np
 import cv2
 import sys
-from typing import List, Union, Tuple
 from PyQt6.QtWidgets import QMainWindow, QLabel, QApplication,\
-    QVBoxLayout, QWidget, QPushButton
+    QVBoxLayout, QHBoxLayout, QWidget, QPushButton, QToolBar, QFileDialog
 from PyQt6.QtCore import QTimer
-from PyQt6 import QtCore
+from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtGui import QImage, QPixmap
+from MotionTracking import MotionTracking
 
 TEXT_COLOR = (0, 255, 0)
 TRACKER_COLOR = (255, 0, 0)
@@ -17,149 +16,20 @@ BGS_TYPES = ["GMG", "MOG", "MOG2", "KNN", "CNT"]
 BGS_TYPE = BGS_TYPES[2]
 
 
-class MotionTracking:
-    def __init__(self, video_source: str):
-        self.cap = cv2.VideoCapture(video_source)
-        self.minArea = 250
-        self.bg_subtractor = self.getBGSubtractor(BGS_TYPE)
-
-    def getKernel(self, KERNEL_TYPE: str) -> List[List[int]]:
-        if KERNEL_TYPE == "dilation":
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-        if KERNEL_TYPE == "opening":
-            kernel = np.ones((3, 3), np.uint8)
-        if KERNEL_TYPE == "closing":
-            kernel = np.ones((3, 3), np.uint8)
-
-        return kernel
-
-    def getFilter(self, img: List[List[int]], filter: str) -> List[List[int]]:
-        if filter == 'closing':
-            return cv2.morphologyEx(img, cv2.MORPH_CLOSE,
-                                    self.getKernel("closing"), iterations=2)
-
-        if filter == 'opening':
-            return cv2.morphologyEx(img, cv2.MORPH_OPEN,
-                                    self.getKernel("opening"), iterations=2)
-
-        if filter == 'dilation':
-            return cv2.dilate(img, self.getKernel("dilation"), iterations=2)
-
-        if filter == 'combine':
-            closing = cv2.morphologyEx(
-                img, cv2.MORPH_CLOSE, self.getKernel(
-                    "closing"), iterations=2)
-            opening = cv2.morphologyEx(
-                closing, cv2.MORPH_OPEN, self.getKernel(
-                    "opening"), iterations=2)
-            dilation = cv2.dilate(opening, self.getKernel(
-                "dilation"), iterations=2)
-
-            return dilation
-        return img
-
-    def getBGSubtractor(self, BGS_TYPE: str):
-        if BGS_TYPE == "GMG":
-            return cv2.bgsegm.createBackgroundSubtractorGMG()
-        if BGS_TYPE == "MOG":
-            return cv2.bgsegm.createBackgroundSubtractorMOG()
-        if BGS_TYPE == "MOG2":
-            return cv2.createBackgroundSubtractorMOG2()
-        if BGS_TYPE == "KNN":
-            return cv2.createBackgroundSubtractorKNN()
-        if BGS_TYPE == "CNT":
-            return cv2.bgsegm.createBackgroundSubtractorCNT()
-        print("Detector inválido")
-        sys.exit(1)
-
-    def runFromImshow(self):
-        while (self.cap.isOpened()):
-            ok, frame = self.cap.read()
-            if not ok:
-                print("Can't receive frame (stream end?). Exiting ...")
-                break
-
-            frame = cv2.resize(frame, (0, 0), fx=0.50, fy=0.50)
-
-            fgmask = self.bg_subtractor.apply(frame)
-            fgmask = self.getFilter(fgmask, 'combine')
-            fgmask = cv2.medianBlur(fgmask, 5)
-
-            contours, hierarchy = cv2.findContours(
-                fgmask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-            for c in contours:
-                if cv2.contourArea(c) < self.minArea:
-                    continue
-
-                (x, y, w, h) = cv2.boundingRect(c)
-                cv2.rectangle(frame, (10, 30), (250, 55), (255, 0, 0), -1)
-                cv2.putText(frame, "Rastreando Objetos", (10, 50),
-                            FONT, 0.8, TEXT_COLOR, 2, cv2.LINE_AA)
-                cv2.drawContours(frame, c, -1, TRACKER_COLOR, 3)
-                cv2.drawContours(frame, c, -1, (255, 255, 255), 1)
-                cv2.rectangle(frame, (x, y), (x+w, y+h), TRACKER_COLOR, 3)
-                cv2.rectangle(frame, (x, y), (x + w, y + h),
-                              (255, 255, 255), 1)
-
-            result = cv2.bitwise_and(frame, frame, mask=fgmask)
-            cv2.imshow('frame', frame)
-            cv2.imshow('fgmask', result)
-
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-
-        self.cap.release()
-        cv2.destroyAllWindows()
-
-    def run(self) -> Union[None, Tuple[bool, List[List[int]]]]:
-        while (self.cap.isOpened()):
-            ok, frame = self.cap.read()
-            if not ok:
-                print("Can't receive frame (stream end?). Exiting ...")
-                break
-
-            frame = cv2.resize(frame, (0, 0), fx=0.50, fy=0.50)
-
-            fgmask = self.bg_subtractor.apply(frame)
-            fgmask = self.getFilter(fgmask, 'combine')
-            fgmask = cv2.medianBlur(fgmask, 5)
-
-            contours, hierarchy = cv2.findContours(
-                fgmask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-            for c in contours:
-                if cv2.contourArea(c) < self.minArea:
-                    continue
-
-                (x, y, w, h) = cv2.boundingRect(c)
-                cv2.rectangle(frame, (10, 30), (258, 55), (255, 0, 0), -1)
-                cv2.putText(frame, "Rastreando Objetos", (10, 50),
-                            FONT, 0.8, TEXT_COLOR, 2, cv2.LINE_AA)
-                cv2.drawContours(frame, c, -1, TRACKER_COLOR, 3)
-                cv2.drawContours(frame, c, -1, (255, 255, 255), 1)
-                cv2.rectangle(frame, (x, y), (x+w, y+h), TRACKER_COLOR, 3)
-                cv2.rectangle(frame, (x, y), (x + w, y + h),
-                              (255, 255, 255), 1)
-
-            result = cv2.bitwise_and(frame, frame, mask=fgmask)
-            return (frame, result)
-
-        return None
-
-
 class MyWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        # Inicializa a janela e define seu título
         self.setWindowTitle("Captura de Movimento")
-        self.setGeometry(0, 0, 600, 720)
-        self.setFixedSize(600, 720)
+        # Define o tamanho da janela
+        self.setGeometry(0, 0, 600, 760)
+        # Define o tamanho mínimo da janela
+        self.setFixedSize(600, 760)
 
         # Cria um layout vertical
         self.layout = QVBoxLayout()
-        # self.layout.setContentsMargins(0, 0, 0, 0)
-        self.layout.setSpacing(1)
-        # self.layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignHCenter)
+        # Define o espaçamento entre os widgets
+        self.layout.setSpacing(3)
 
         # Cria um widget para conter o layout
         self.widget = QWidget()
@@ -168,42 +38,129 @@ class MyWindow(QMainWindow):
         # Define o widget como a janela principal
         self.setCentralWidget(self.widget)
 
+        # Cria outro widget para conter os dois botões
+        self.widgetButtons = QWidget()
+        # Cria um layout horizontal
+        self.layoutButtons = QHBoxLayout()
+        # Define o espaçamento entre os widgets
+        self.layoutButtons.setSpacing(3)
+        # Define o layout do widget
+        self.widgetButtons.setLayout(self.layoutButtons)
+
         # Cria um botão
         self.button = QPushButton("Iniciar")
         # Define o tamanho do botão
         self.button.setFixedSize(100, 50)
         # Remove as margens do botão
         self.button.setContentsMargins(0, 0, 0, 0)
+        # Estiliza a fonte do botão
+        self.button.setFont(QtGui.QFont(
+            "Arial", 12, QtGui.QFont.Weight.Bold))
 
-        # self.button.clicked.connect(self.start)
         # Adiciona o botão ao layout
-        self.layout.addWidget(
+        self.layoutButtons.addWidget(
             self.button, alignment=QtCore.Qt.AlignmentFlag.AlignCenter)
+
+        # Cria um outro botão
+        self.button2 = QPushButton("Parar")
+        # Define o tamanho do botão
+        self.button2.setFixedSize(100, 50)
+        # Remove as margens do botão
+        self.button2.setContentsMargins(0, 0, 0, 0)
+        # Estiliza a fonte do botão
+        self.button2.setFont(QtGui.QFont(
+            "Arial", 12, QtGui.QFont.Weight.Bold))
+
+        # Adiciona o botão ao layout
+        self.layoutButtons.addWidget(
+            self.button2, alignment=QtCore.Qt.AlignmentFlag.AlignCenter)
+
+        # Adiciona o widget dos botões ao layout
+        self.layout.addWidget(
+            self.widgetButtons, alignment=QtCore.Qt.AlignmentFlag.AlignCenter)
 
         # Cria um label para exibir a imagem
         self.label = QLabel()
-        self.label.setFixedSize(580, 320)
+        # Define o tamanho do label
+        self.label.setFixedSize(580, 300)
+        # Amplia o video com pyqt6 para o tamanho do label se necessário
+        self.label.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding,
+                                 QtWidgets.QSizePolicy.Policy.Expanding)
+        # Define o espaçamento entre os labels
+        self.label.setContentsMargins(1, 1, 1, 1)
 
-        # Define o alinhamento do texto no label
+        # Define a cor de fundo do label
         self.label.setStyleSheet("background-color: black;")
         # Adiciona o label ao layout
         self.layout.addWidget(
             self.label, alignment=QtCore.Qt.AlignmentFlag.AlignCenter)
 
+        # Cria outro label para exibir a imagem
         self.label2 = QLabel()
         self.label2.setFixedSize(580, 320)
-        # self.label2.setAlignment(Qt.AlignCenter)
         self.label2.setStyleSheet("background-color: black;")
         self.layout.addWidget(self.label2,
                               alignment=QtCore.Qt.AlignmentFlag.AlignCenter)
 
+        # cria uma barra de ferramentas
+        self.toolbar = QToolBar('Barra de Ferramentas')
+        # adiciona a barra de ferramentas à janela
+        self.addToolBar(QtCore.Qt.ToolBarArea.TopToolBarArea, self.toolbar)
+
+        # cria a ação "Abrir"
+        self.actionOpen = QtGui.QAction(QtGui.QIcon(
+            'icons/open.svg'), 'Abrir', self)
+        # define a tecla de atalho
+        self.actionOpen.setShortcut('Ctrl+O')
+        # define o que acontece quando a ação é acionada
+        self.actionOpen.triggered.connect(self.open_file)
+
+        # adiciona a ação à barra de ferramentas
+        self.toolbar.addAction(self.actionOpen)
+
+        # cria a ação "Webcam"
+        self.actionWebcam = QtGui.QAction(QtGui.QIcon(
+            'icons/webcam.svg'), 'Webcam', self)
+        # define a tecla de atalho
+        self.actionWebcam.setShortcut('Ctrl+W')
+        # define o que acontece quando a ação é acionada
+        self.actionWebcam.triggered.connect(self.set_webcam)
+
+        # adiciona a ação à barra de ferramentas
+        self.toolbar.addAction(self.actionWebcam)
+
+        # Cria um timer
         self.timer = QTimer()
+        # Conecta o timer ao método update_frame
         self.timer.timeout.connect(self.update_frame)
-        # self.timer.start(1)
+
+        # Reduz a frequência do timer para 1 frame por segundo
+        self.timer.setInterval(int(1000/40))
+
+        # self.timer.start(1) se quiser iniciar o timer já na inicialização
+
+        # Conecta o botão iniciar ao timer
         self.button.clicked.connect(self.timer.start)
+        # Conecta o botão parar ao timer
+        self.button2.clicked.connect(self.timer.stop)
+
+    def set_webcam(self):
+        # define a webcam como a fonte de vídeo
+        motion_tracking.set_video_source(0)
+
+    def open_file(self):
+        # abre uma caixa de diálogo para selecionar o arquivo
+        filename = QFileDialog.getOpenFileName(
+            self, 'Abrir arquivo', '', 'Vídeos (*.mp4 *.avi)')[0]
+        # se o usuário selecionou um arquivo
+        if filename:
+            # define o arquivo como a fonte de vídeo
+            motion_tracking.set_video_source(filename)
 
     def update_frame(self):
-        frame, result = motion_tracking.run()
+        frame, result = motion_tracking.run(FONT, TEXT_COLOR, TRACKER_COLOR)
+        if frame is None or result is None:
+            return
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         result = cv2.cvtColor(result, cv2.COLOR_BGR2RGB)
         height, width, channel = frame.shape
@@ -221,7 +178,7 @@ class MyWindow(QMainWindow):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    motion_tracking = MotionTracking(VIDEO_SOURCE)
+    motion_tracking = MotionTracking(VIDEO_SOURCE, BGS_TYPE)
     window = MyWindow()
     window.show()
     sys.exit(app.exec())
