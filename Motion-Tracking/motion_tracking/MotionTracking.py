@@ -2,23 +2,10 @@ import numpy as np
 import cv2
 import sys
 from typing import List, Union, Tuple
-from PyQt6.QtWidgets import QMainWindow, QLabel, QApplication,\
-    QVBoxLayout, QWidget, QPushButton
-from PyQt6.QtCore import QTimer
-from PyQt6 import QtCore
-from PyQt6.QtGui import QImage, QPixmap
-
-TEXT_COLOR = (0, 255, 0)
-TRACKER_COLOR = (255, 0, 0)
-FONT = cv2.FONT_HERSHEY_SIMPLEX
-VIDEO_SOURCE = "videos/Cars.mp4"
-
-BGS_TYPES = ["GMG", "MOG", "MOG2", "KNN", "CNT"]
-BGS_TYPE = BGS_TYPES[2]
 
 
 class MotionTracking:
-    def __init__(self, video_source: str):
+    def __init__(self, video_source: str, BGS_TYPE: str):
         self.cap = cv2.VideoCapture(video_source)
         self.minArea = 250
         self.bg_subtractor = self.getBGSubtractor(BGS_TYPE)
@@ -72,7 +59,8 @@ class MotionTracking:
         print("Detector inválido")
         sys.exit(1)
 
-    def runFromImshow(self):
+    def runFromImshow(self, FONT: int, TEXT_COLOR: Tuple[int, int, int],
+                      TRACKER_COLOR: Tuple[int, int, int]):
         while (self.cap.isOpened()):
             ok, frame = self.cap.read()
             if not ok:
@@ -112,11 +100,15 @@ class MotionTracking:
         self.cap.release()
         cv2.destroyAllWindows()
 
-    def run(self) -> Union[None, Tuple[bool, List[List[int]]]]:
+    def run(self, FONT: int, TEXT_COLOR: Tuple[int, int, int],
+            TRACKER_COLOR: Tuple[int, int, int]) -> \
+            Union[Tuple[None, None], Tuple[bool, List[List[int]]]]:
         while (self.cap.isOpened()):
             ok, frame = self.cap.read()
             if not ok:
                 print("Can't receive frame (stream end?). Exiting ...")
+                # reiniciar o video
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 break
 
             frame = cv2.resize(frame, (0, 0), fx=0.50, fy=0.50)
@@ -145,83 +137,4 @@ class MotionTracking:
             result = cv2.bitwise_and(frame, frame, mask=fgmask)
             return (frame, result)
 
-        return None
-
-
-class MyWindow(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Captura de Movimento")
-        self.setGeometry(0, 0, 600, 720)
-        self.setFixedSize(600, 720)
-
-        # Cria um layout vertical
-        self.layout = QVBoxLayout()
-        # self.layout.setContentsMargins(0, 0, 0, 0)
-        self.layout.setSpacing(1)
-        # self.layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignHCenter)
-
-        # Cria um widget para conter o layout
-        self.widget = QWidget()
-        # Define o layout do widget
-        self.widget.setLayout(self.layout)
-        # Define o widget como a janela principal
-        self.setCentralWidget(self.widget)
-
-        # Cria um botão
-        self.button = QPushButton("Iniciar")
-        # Define o tamanho do botão
-        self.button.setFixedSize(100, 50)
-        # Remove as margens do botão
-        self.button.setContentsMargins(0, 0, 0, 0)
-
-        # self.button.clicked.connect(self.start)
-        # Adiciona o botão ao layout
-        self.layout.addWidget(
-            self.button, alignment=QtCore.Qt.AlignmentFlag.AlignCenter)
-
-        # Cria um label para exibir a imagem
-        self.label = QLabel()
-        self.label.setFixedSize(580, 320)
-
-        # Define o alinhamento do texto no label
-        self.label.setStyleSheet("background-color: black;")
-        # Adiciona o label ao layout
-        self.layout.addWidget(
-            self.label, alignment=QtCore.Qt.AlignmentFlag.AlignCenter)
-
-        self.label2 = QLabel()
-        self.label2.setFixedSize(580, 320)
-        # self.label2.setAlignment(Qt.AlignCenter)
-        self.label2.setStyleSheet("background-color: black;")
-        self.layout.addWidget(self.label2,
-                              alignment=QtCore.Qt.AlignmentFlag.AlignCenter)
-
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.update_frame)
-        # self.timer.start(1)
-        self.button.clicked.connect(self.timer.start)
-
-    def update_frame(self):
-        frame, result = motion_tracking.run()
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        result = cv2.cvtColor(result, cv2.COLOR_BGR2RGB)
-        height, width, channel = frame.shape
-        step = channel * width
-        qImg = QImage(frame.data, width, height, step,
-                      QImage.Format.Format_RGB888)
-        self.label.setPixmap(QPixmap.fromImage(qImg))
-
-        height, width, channel = result.shape
-        step = channel * width
-        qImg = QImage(result.data, width, height, step,
-                      QImage.Format.Format_RGB888)
-        self.label2.setPixmap(QPixmap.fromImage(qImg))
-
-
-if __name__ == '__main__':
-    app = QApplication(sys.argv)
-    motion_tracking = MotionTracking(VIDEO_SOURCE)
-    window = MyWindow()
-    window.show()
-    sys.exit(app.exec())
+        return (None, None)
