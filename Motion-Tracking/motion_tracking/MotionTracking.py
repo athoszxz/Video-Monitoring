@@ -1,3 +1,4 @@
+# Don't Run this file, it's a class to be imported
 import numpy as np
 import cv2
 import sys
